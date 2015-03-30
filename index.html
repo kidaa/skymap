@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Sky Map</title>
+
+<style>
+
+
+#map {
+  width: 1000px;
+  margin: 0 auto;
+}
+
+#map h1 {
+  position: absolute;
+  width: 1000px;
+}
+
+.foreground {
+  fill: none;
+  stroke: #000;
+  stroke-width: 1px;
+  pointer-events: all;
+}
+
+.foreground.zooming {
+  cursor: -webkit-grab;
+  cursor: -moz-grab;
+}
+
+.graticule {
+  fill: none;
+  stroke: #636B62;
+  stroke-width: .5px;
+  stroke-dasharray: 2,2;
+}
+
+.mesh {
+  stroke: #50576A;
+  stroke-width: .5px;
+  fill: none;
+}
+
+.point {
+  fill: #f00;
+}
+
+.boundary {
+  fill: none;
+  stroke: #444;
+  stroke-width: .5px;
+  stroke-dasharray: 4,4;
+}
+
+.constellation {
+  fill: none;
+  stroke: #000;
+  stroke-width: .5px;
+}
+
+.star {
+  fill: #000;
+  radius: 20;
+  cursor: pointer;
+}
+
+
+</style>
+</head>
+
+
+<body>
+<p class="breadcrumbs">
+</p>
+<div id="map"></div>
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+    <script src="http://d3js.org/d3.geo.projection.v0.min.js"></script>
+    <script src="http://d3js.org/topojson.v1.min.js"></script>
+    <script src="d3.geo.zoom.js"></script>
+    <script src="http://d3js.org/queue.v1.min.js"></script>
+<script type="text/javascript">
+"use strict";
+
+var degrees = 180 / Math.PI,
+    width = 1000,
+    height = 600;
+
+var svg = d3.selectAll("#map")
+    .append("svg")
+    .attr("width", width)
+    .attr("height", height);
+var projection = orthographicProjection(width, height)
+    .scale(245)
+    .translate([width / 2, height * .56]);
+
+var path = d3.geo.path().projection(projection);
+
+var radius = d3.scale.linear()
+    .domain ([-2, 6])
+    .range([5, 0]);
+
+drawMap (svg, path, true);
+
+function redraw()
+{
+  svg.select(".foreground").attr("d", path);
+  svg.select(".graticule").attr("d", path);
+  svg.select(".boundary").attr("d", path);
+  svg.select(".constellation").attr("d", path);
+  svg.select("#g1").selectAll(".star")
+  .attr("d", path.pointRadius(function(d) {
+    if (typeof(d.properties) != "undefined")  // BUG sometimes we get called when properties are undefined 
+        return (radius(d.properties.mag));
+    else
+        return(null);  
+  }));
+} 
+
+
+svg.selectAll(".foreground")
+    .call(d3.geo.zoom().projection(projection)
+      .scaleExtent([projection.scale() * 1, projection.scale() * 20])
+      .on("zoom.redraw", function() {
+        redraw();
+      }));
+
+
+// Load constellation boundaries
+d3.json("boundaries.json", function(error, boundaries) {
+      d3.selectAll("svg").insert("path") 
+      .datum(topojson.feature(boundaries, boundaries.objects.boundaries))
+      .attr("class", "boundary")   
+ });
+
+// Load constellation lines
+d3.json("constellations.json", function(error, constellations) {
+      d3.selectAll("svg").insert("path") 
+      .datum(topojson.feature(constellations, constellations.objects.constellations))
+      .attr("class", "constellation")   
+ });
+
+
+// Load star array
+d3.json("stars.json", function(error, stars) {
+  var g1 = d3.selectAll("svg").append("g").attr("id", "g1")
+      .selectAll("#g1")    
+      .data(stars.features)
+      .enter().append("path")
+      .attr("class", "star");
+      svg.append("text").attr("id", "stardata");
+
+      g1.on("mousedown",function(d){
+        var xy = d3.mouse(this);
+        console.log(xy);
+       d3.select("#stardata").text("HD: " + d.id + ' - ' + d.properties.name + ' ' + d.properties.constellation)
+       .attr("x", xy[0]).attr("y", xy[1]);
+      });  
+
+
+/*      
+      .on("mousedown",function(d){
+        d3.select("#stardata").text("HD: " + d.id + ' - ' + d.properties.name + ' ' + d.properties.constellation)
+      });  
+*/
+      redraw();
+ });
+
+
+function drawMap(svg, path, mousePoint) {
+  var projection = path.projection();
+
+  svg.append("path")
+      .datum(d3.geo.graticule())
+      .attr("class", "graticule");
+
+  svg.append("path")
+      .datum({type: "Sphere"})
+      .attr("class", "foreground")
+      .on("mousedown.grab", function() {
+        var point;
+        if (mousePoint) point = svg.insert("path", ".foreground")
+            .datum({type: "Point", coordinates: projection.invert(d3.mouse(this))})
+            .attr("class", "point")
+            .attr("d", path);
+        var path = d3.select(this).classed("zooming", true),
+            w = d3.select(window).on("mouseup.grab", function() {
+              path.classed("zooming", false);
+              w.on("mouseup.grab", null);
+              if (mousePoint) point.remove();
+            });
+      });
+       redraw();
+}
+
+function orthographicProjection(width, height) {
+  return d3.geo.stereographic()
+      .precision(.5)
+      .clipAngle(90)
+      .clipExtent([[-1, -1], [width + 1, height + 1]])
+      .translate([width / 2, height / 2])
+      .scale(width / 2 - 10)
+      .rotate([0, -30]);
+}
+</script>
+</body>
+</html>
