@@ -195,7 +195,7 @@ function drawMap(svg, path, mousePoint) {
 }
 
 function orthographicProjection(width, height) {
-  return d3.geo.stereographic()
+  return d3.geo.orthographic()
       .precision(.5)
       .clipAngle(90)
       .clipExtent([[-1, -1], [width + 1, height + 1]])
